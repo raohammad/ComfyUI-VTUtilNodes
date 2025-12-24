@@ -565,6 +565,60 @@ class JSONQueueSignal:
         return (None, 0, False, -1)
 
 
+class JSONQueueMerge:
+    """
+    A merge node that combines outputs from JSONQueue and JSONQueueSignal into a single output.
+    This allows you to have one output that works for both the first item and subsequent items.
+    """
+    CATEGORY = "VTUtil"
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "queue_item": ("*", {
+                    "forceInput": True,
+                    "tooltip": "First item from JSONQueue (initial output)"
+                }),
+                "signal_item": ("*", {
+                    "forceInput": True,
+                    "tooltip": "Subsequent items from JSONQueueSignal (when signal increments)"
+                }),
+            }
+        }
+    
+    RETURN_TYPES = ("*", "INT", "BOOLEAN", "INT")
+    RETURN_NAMES = ("item", "queue_length", "has_more", "item_index")
+    FUNCTION = "merge_outputs"
+    OUTPUT_NODE = False
+    
+    def merge_outputs(self, queue_item: Union[dict, list, Any], signal_item: Union[dict, list, Any]) -> Tuple[Union[dict, list, Any], int, bool, int]:
+        """
+        Merge outputs from JSONQueue and JSONQueueSignal.
+        Returns the first non-None value, prioritizing signal_item.
+        
+        Args:
+            queue_item: Output from JSONQueue (first item)
+            signal_item: Output from JSONQueueSignal (subsequent items)
+            
+        Returns:
+            Tuple containing the merged item and metadata
+        """
+        # Prioritize signal_item (subsequent items), fall back to queue_item (first item)
+        if signal_item is not None:
+            # Try to get metadata from signal_item if it's a tuple
+            if isinstance(signal_item, tuple) and len(signal_item) == 4:
+                return signal_item
+            return (signal_item, 0, False, 0)
+        elif queue_item is not None:
+            # Try to get metadata from queue_item if it's a tuple
+            if isinstance(queue_item, tuple) and len(queue_item) == 4:
+                return queue_item
+            return (queue_item, 0, False, 0)
+        else:
+            return (None, 0, False, -1)
+
+
 class SignalCounter:
     """
     A simple counter node that generates incrementing signals.
@@ -688,6 +742,7 @@ NODE_CLASS_MAPPINGS = {
     "JSONListIterator": JSONListIterator,
     "JSONQueue": JSONQueue,
     "JSONQueueSignal": JSONQueueSignal,
+    "JSONQueueMerge": JSONQueueMerge,
     "SignalCounter": SignalCounter,
     "SimpleCounter": SimpleCounter,
 }
@@ -699,6 +754,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "JSONListIterator": "JSON List Iterator",
     "JSONQueue": "JSON Queue",
     "JSONQueueSignal": "JSON Queue Signal",
+    "JSONQueueMerge": "JSON Queue Merge",
     "SignalCounter": "Signal Counter",
     "SimpleCounter": "Simple Counter",
 }
