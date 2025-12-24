@@ -417,7 +417,7 @@ class JSONQueue:
                     "default": 0,
                     "min": 0,
                     "max": 999999,
-                    "tooltip": "Signal to advance to next item. Connect this to a counter or completion signal from your processing pipeline. Increment this value to process next item in queue."
+                    "tooltip": "Signal to advance to next item. Connect this to a counter or completion signal from your processing pipeline. Increment this value to process next item in queue. IMPORTANT: Do NOT connect this directly to the same JSONQueue's item output - connect it from the END of your processing pipeline."
                 }),
             }
         }
@@ -427,7 +427,7 @@ class JSONQueue:
     FUNCTION = "process_queue"
     OUTPUT_NODE = False
     
-    def process_queue(self, json_item: Union[dict, list, Any], queue_id: str, reset: bool, signal: int = 0) -> Tuple[Union[dict, list, Any], int, bool, int]:
+    def process_queue(self, json_item: Union[dict, list, Any], queue_id: str, reset: bool, signal: Union[int, None] = None) -> Tuple[Union[dict, list, Any], int, bool, int]:
         """
         Process items in a FIFO queue.
         
@@ -435,7 +435,7 @@ class JSONQueue:
             json_item: The JSON item to add to the queue or process
             queue_id: Unique identifier for this queue
             reset: If True, clear the queue and start fresh
-            signal: Signal value to advance to next item (increment to process next)
+            signal: Signal value to advance to next item (increment to process next). Can be None.
             
         Returns:
             Tuple containing:
@@ -444,6 +444,10 @@ class JSONQueue:
             - Boolean indicating if there are more items
             - The index of the current item (0-based)
         """
+        # Handle None signal (when not connected)
+        if signal is None:
+            signal = 0
+        
         # Initialize queue if it doesn't exist or if reset is requested
         if reset or queue_id not in self._queues:
             self._queues[queue_id] = deque()
@@ -527,9 +531,9 @@ class SignalCounter:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "trigger": ("*", {
+                "trigger": ("VIDEO", {
                     "forceInput": True,
-                    "tooltip": "Any input that triggers the counter. Connect your video node output or any completion signal here."
+                    "tooltip": "Video output that triggers the counter. Connect your video generation node output here. The value itself is not used, only the execution triggers the counter."
                 }),
                 "counter_id": ("STRING", {
                     "default": "default",

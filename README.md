@@ -210,16 +210,34 @@ TextToJSON
   → JSONKeyExtractor (path: "scenes")
   → JSONListIterator (mode: "all")
   → JSONQueue (queue_id: "scenes", reset: True)
-  → [Scene Processing]
-  → [Video Generation Node]
-  → SignalCounter (counter_id: "video_complete")
+  → [Scene Processing Nodes]
+  → [Video Generation Node] (output)
+  → SignalCounter (trigger input, counter_id: "video_complete")
   → JSONQueue (signal input, queue_id: "scenes")
 ```
 
+**⚠️ IMPORTANT - Avoid Circular Dependencies:**
+
+**❌ WRONG (Creates circular dependency):**
+```
+JSONQueue.item → SignalCounter.trigger
+SignalCounter.signal → JSONQueue.signal
+```
+This creates a loop and will fail validation!
+
+**✅ CORRECT (Signal comes from processing completion):**
+```
+JSONQueue.item → [Processing Pipeline] → [Video Node] → SignalCounter.trigger
+SignalCounter.signal → JSONQueue.signal
+```
+The signal comes from AFTER processing completes, breaking the circular dependency.
+
 **Tips:**
 - Use the same `counter_id` for SignalCounter and `queue_id` for JSONQueue to keep them in sync
-- Set `reset: True` on both nodes when starting a new batch
+- Set `reset: True` on JSONQueue when starting a new batch
 - The video node output can be any type - SignalCounter just uses it as a trigger
+- **Never connect JSONQueue.item directly to SignalCounter.trigger that feeds back to the same JSONQueue.signal**
+- The signal must come from the END of your processing pipeline, not from the queue item itself
 
 ## Development
 
