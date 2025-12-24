@@ -412,14 +412,6 @@ class JSONQueue:
                     "tooltip": "Reset the queue (clears all items and starts fresh). Set to True to start a new queue."
                 }),
             },
-            "optional": {
-                "signal": ("INT", {
-                    "default": 0,
-                    "min": 0,
-                    "max": 999999,
-                    "tooltip": "Signal to advance to next item. Connect this to a counter or completion signal from your processing pipeline. Increment this value to process next item in queue. IMPORTANT: Do NOT connect this directly to the same JSONQueue's item output - connect it from the END of your processing pipeline."
-                }),
-            }
         }
     
     RETURN_TYPES = ("*", "INT", "BOOLEAN", "INT")
@@ -427,7 +419,7 @@ class JSONQueue:
     FUNCTION = "process_queue"
     OUTPUT_NODE = False
     
-    def process_queue(self, json_item: Union[dict, list, Any], queue_id: str, reset: bool, signal: Union[int, None] = None) -> Tuple[Union[dict, list, Any], int, bool, int]:
+    def process_queue(self, json_item: Union[dict, list, Any], queue_id: str, reset: bool) -> Tuple[Union[dict, list, Any], int, bool, int]:
         """
         Process items in a FIFO queue.
         
@@ -435,7 +427,6 @@ class JSONQueue:
             json_item: The JSON item to add to the queue or process
             queue_id: Unique identifier for this queue
             reset: If True, clear the queue and start fresh
-            signal: Signal value to advance to next item (increment to process next). Can be None.
             
         Returns:
             Tuple containing:
@@ -444,9 +435,6 @@ class JSONQueue:
             - Boolean indicating if there are more items
             - The index of the current item (0-based)
         """
-        # Handle None signal (when not connected)
-        if signal is None:
-            signal = 0
         
         # Initialize queue if it doesn't exist or if reset is requested
         if reset or queue_id not in self._queues:
@@ -480,9 +468,6 @@ class JSONQueue:
             else:
                 queue.append(json_item)
         
-        # Check if signal has changed (incremented)
-        signal_changed = signal > self._last_signal[queue_id]
-        
         # If queue is empty and nothing is being processed, return None
         if len(queue) == 0 and not self._initialized[queue_id]:
             return (None, 0, False, -1)
@@ -491,29 +476,93 @@ class JSONQueue:
         if not self._initialized[queue_id] and len(queue) > 0:
             item = queue.popleft()
             self._current_outputs[queue_id] = item
-            self._last_signal[queue_id] = signal
             self._initialized[queue_id] = True
             self._item_index[queue_id] = 0
             return (item, len(queue), len(queue) > 0, 0)
         
-        # Subsequent items: only output if signal has changed (incremented)
-        if signal_changed:
-            if len(queue) > 0:
-                item = queue.popleft()
-                self._current_outputs[queue_id] = item
-                self._last_signal[queue_id] = signal
-                self._item_index[queue_id] += 1
-                return (item, len(queue), len(queue) > 0, self._item_index[queue_id])
-            else:
-                # Queue is empty, return current output
-                return (self._current_outputs[queue_id], 0, False, self._item_index[queue_id])
-        
-        # Signal hasn't changed, return current output
+        # For subsequent items, we need to check if processing is complete
+        # This is handled by JSONQueueSignal node which should be called separately
+        # For now, return current output
         return (self._current_outputs[queue_id], len(queue), len(queue) > 0, self._item_index[queue_id])
 
 
 # Initialize class-level tracking
 JSONQueue._item_index = {}
+
+
+class JSONQueueSignal:
+    """
+    A separate node to handle signal input for JSONQueue to avoid circular dependencies.
+    Connect SignalCounter.signal → JSONQueueSignal.signal (NOT directly to JSONQueue).
+    This processes the signal and advances the queue without creating a validation cycle.
+    """
+    CATEGORY = "VTUtil"
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "signal": ("INT", {
+                    "forceInput": True,
+                    "tooltip": "Signal from SignalCounter to advance the queue"
+                }),
+                "queue_id": ("STRING", {
+                    "default": "default",
+                    "tooltip": "Queue ID (must match the JSONQueue queue_id)"
+                }),
+            }
+        }
+    
+    RETURN_TYPES = ("*", "INT", "BOOLEAN", "INT")
+    RETURN_NAMES = ("item", "queue_length", "has_more", "item_index")
+    FUNCTION = "process_signal"
+    OUTPUT_NODE = False
+    
+    def process_signal(self, signal: int, queue_id: str) -> Tuple[Union[dict, list, Any], int, bool, int]:
+        """
+        Process signal to advance queue and output next item.
+        This breaks the circular dependency by being a separate node.
+        
+        Args:
+            signal: Signal value from SignalCounter
+            queue_id: Queue identifier (must match JSONQueue queue_id)
+            
+        Returns:
+            Tuple containing next item, queue length, has_more, and item_index
+        """
+        # Access the shared queue state
+        if queue_id not in JSONQueue._queues:
+            return (None, 0, False, -1)
+        
+        queue = JSONQueue._queues[queue_id]
+        
+        # Check if signal has changed (incremented)
+        if queue_id not in JSONQueue._last_signal:
+            JSONQueue._last_signal[queue_id] = -1
+        
+        signal_changed = signal > JSONQueue._last_signal[queue_id]
+        
+        # If signal hasn't changed, return current output
+        if not signal_changed and queue_id in JSONQueue._current_outputs:
+            return (JSONQueue._current_outputs[queue_id], len(queue), len(queue) > 0, 
+                    JSONQueue._item_index.get(queue_id, 0))
+        
+        # Signal changed - advance to next item
+        if signal_changed and len(queue) > 0:
+            item = queue.popleft()
+            JSONQueue._current_outputs[queue_id] = item
+            JSONQueue._last_signal[queue_id] = signal
+            if queue_id not in JSONQueue._item_index:
+                JSONQueue._item_index[queue_id] = 0
+            JSONQueue._item_index[queue_id] += 1
+            return (item, len(queue), len(queue) > 0, JSONQueue._item_index[queue_id])
+        
+        # Queue empty or no change
+        if queue_id in JSONQueue._current_outputs:
+            return (JSONQueue._current_outputs[queue_id], len(queue), len(queue) > 0,
+                    JSONQueue._item_index.get(queue_id, 0))
+        
+        return (None, 0, False, -1)
 
 
 class SignalCounter:
@@ -638,6 +687,7 @@ NODE_CLASS_MAPPINGS = {
     "JSONKeyExtractor": JSONKeyExtractor,
     "JSONListIterator": JSONListIterator,
     "JSONQueue": JSONQueue,
+    "JSONQueueSignal": JSONQueueSignal,
     "SignalCounter": SignalCounter,
     "SimpleCounter": SimpleCounter,
 }
@@ -648,6 +698,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "JSONKeyExtractor": "JSON Key Extractor",
     "JSONListIterator": "JSON List Iterator",
     "JSONQueue": "JSON Queue",
+    "JSONQueueSignal": "JSON Queue Signal",
     "SignalCounter": "Signal Counter",
     "SimpleCounter": "Simple Counter",
 }
