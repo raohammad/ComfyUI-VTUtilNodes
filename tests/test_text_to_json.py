@@ -24,10 +24,10 @@ class TestTextToJSON(unittest.TestCase):
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)
         
-        # Parse the result to verify it's valid JSON
-        parsed_result = json.loads(result[0])
-        self.assertEqual(parsed_result["name"], "test")
-        self.assertEqual(parsed_result["value"], 123)
+        # Result should now be a dict object, not a JSON string
+        self.assertIsInstance(result[0], dict)
+        self.assertEqual(result[0]["name"], "test")
+        self.assertEqual(result[0]["value"], 123)
     
     def test_valid_json_array(self):
         """Test conversion of valid JSON array string"""
@@ -37,10 +37,9 @@ class TestTextToJSON(unittest.TestCase):
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)
         
-        # Parse the result to verify it's valid JSON
-        parsed_result = json.loads(result[0])
-        self.assertIsInstance(parsed_result, list)
-        self.assertEqual(parsed_result, [1, 2, 3, "test"])
+        # Result should now be a list object, not a JSON string
+        self.assertIsInstance(result[0], list)
+        self.assertEqual(result[0], [1, 2, 3, "test"])
     
     def test_valid_json_string(self):
         """Test conversion of valid JSON string value"""
@@ -50,9 +49,9 @@ class TestTextToJSON(unittest.TestCase):
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)
         
-        # Parse the result to verify it's valid JSON
-        parsed_result = json.loads(result[0])
-        self.assertEqual(parsed_result, "hello world")
+        # Result should now be a string object, not a JSON string
+        self.assertIsInstance(result[0], str)
+        self.assertEqual(result[0], "hello world")
     
     def test_valid_json_number(self):
         """Test conversion of valid JSON number"""
@@ -62,9 +61,9 @@ class TestTextToJSON(unittest.TestCase):
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)
         
-        # Parse the result to verify it's valid JSON
-        parsed_result = json.loads(result[0])
-        self.assertEqual(parsed_result, 42)
+        # Result should now be an int object, not a JSON string
+        self.assertIsInstance(result[0], int)
+        self.assertEqual(result[0], 42)
     
     def test_invalid_json(self):
         """Test handling of invalid JSON input"""
@@ -74,11 +73,11 @@ class TestTextToJSON(unittest.TestCase):
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)
         
-        # Parse the result - it should be a JSON object with error information
-        parsed_result = json.loads(result[0])
-        self.assertIn("error", parsed_result)
-        self.assertEqual(parsed_result["error"], "Invalid JSON input")
-        self.assertIn("original_text", parsed_result)
+        # Result should be a dict object with error information
+        self.assertIsInstance(result[0], dict)
+        self.assertIn("error", result[0])
+        self.assertEqual(result[0]["error"], "Invalid JSON input")
+        self.assertIn("original_text", result[0])
     
     def test_empty_string(self):
         """Test handling of empty string - now returns empty object"""
@@ -88,24 +87,21 @@ class TestTextToJSON(unittest.TestCase):
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)
         
-        # Empty string now returns empty JSON object
-        parsed_result = json.loads(result[0])
-        self.assertEqual(parsed_result, {})
+        # Empty string now returns empty dict object
+        self.assertIsInstance(result[0], dict)
+        self.assertEqual(result[0], {})
     
     def test_formatted_output(self):
-        """Test that output is properly formatted with indentation"""
+        """Test that output is a dict object (not formatted string)"""
         input_text = '{"a":1,"b":2,"c":3}'
         result = self.node.convert_to_json(input_text)
         
         self.assertIsInstance(result, tuple)
-        # Check that the output contains newlines (indentation)
-        self.assertIn('\n', result[0])
-        
-        # Verify it's still valid JSON
-        parsed_result = json.loads(result[0])
-        self.assertEqual(parsed_result["a"], 1)
-        self.assertEqual(parsed_result["b"], 2)
-        self.assertEqual(parsed_result["c"], 3)
+        # Result should be a dict object, not a formatted string
+        self.assertIsInstance(result[0], dict)
+        self.assertEqual(result[0]["a"], 1)
+        self.assertEqual(result[0]["b"], 2)
+        self.assertEqual(result[0]["c"], 3)
     
     def test_nested_json(self):
         """Test conversion of nested JSON structures"""
@@ -113,8 +109,8 @@ class TestTextToJSON(unittest.TestCase):
         result = self.node.convert_to_json(input_text)
         
         self.assertIsInstance(result, tuple)
-        parsed_result = json.loads(result[0])
-        self.assertEqual(parsed_result["level1"]["level2"]["level3"], "deep")
+        self.assertIsInstance(result[0], dict)
+        self.assertEqual(result[0]["level1"]["level2"]["level3"], "deep")
     
     def test_input_types(self):
         """Test that INPUT_TYPES is correctly defined"""
@@ -126,7 +122,7 @@ class TestTextToJSON(unittest.TestCase):
     
     def test_return_types(self):
         """Test that RETURN_TYPES is correctly defined"""
-        self.assertEqual(TextToJSON.RETURN_TYPES, ("STRING",))
+        self.assertEqual(TextToJSON.RETURN_TYPES, ("*",))  # Wildcard type for JSON objects
         self.assertEqual(TextToJSON.RETURN_NAMES, ("json",))
         self.assertEqual(TextToJSON.FUNCTION, "convert_to_json")
         self.assertEqual(TextToJSON.CATEGORY, "VTUtil")
@@ -140,10 +136,10 @@ class TestTextToJSON(unittest.TestCase):
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)
         
-        # Should be successfully parsed (auto-fixed)
-        parsed_result = json.loads(result[0])
-        self.assertNotIn("error", parsed_result)
-        self.assertEqual(parsed_result["name"], "nammad")
+        # Should be successfully parsed (auto-fixed) and return a dict
+        self.assertIsInstance(result[0], dict)
+        self.assertNotIn("error", result[0])
+        self.assertEqual(result[0]["name"], "nammad")
     
     def test_whitespace_handling(self):
         """Test that leading/trailing whitespace is stripped"""
@@ -151,8 +147,8 @@ class TestTextToJSON(unittest.TestCase):
         result = self.node.convert_to_json(input_text)
         
         self.assertIsInstance(result, tuple)
-        parsed_result = json.loads(result[0])
-        self.assertEqual(parsed_result["name"], "test")
+        self.assertIsInstance(result[0], dict)
+        self.assertEqual(result[0]["name"], "test")
     
     def test_empty_string_returns_empty_object(self):
         """Test that empty string returns empty JSON object"""
@@ -160,8 +156,8 @@ class TestTextToJSON(unittest.TestCase):
         result = self.node.convert_to_json(input_text)
         
         self.assertIsInstance(result, tuple)
-        parsed_result = json.loads(result[0])
-        self.assertEqual(parsed_result, {})
+        self.assertIsInstance(result[0], dict)
+        self.assertEqual(result[0], {})
 
 
 if __name__ == '__main__':

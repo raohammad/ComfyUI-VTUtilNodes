@@ -1,5 +1,5 @@
 import json
-from typing import Tuple
+from typing import Tuple, Union
 
 
 class TextToJSON:
@@ -20,53 +20,50 @@ class TextToJSON:
             }
         }
     
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = ("*",)  # Use wildcard to allow connection to any type, or use dict/list
     RETURN_NAMES = ("json",)
     FUNCTION = "convert_to_json"
     OUTPUT_NODE = False
     
-    def convert_to_json(self, text: str) -> Tuple[str]:
+    def convert_to_json(self, text: str) -> Tuple[Union[dict, list, str, int, float, bool, None]]:
         """
-        Convert text input to JSON format.
+        Convert text input to JSON format and return the parsed object.
         
         Args:
             text: Input text string that should be valid JSON
             
         Returns:
-            Tuple containing the JSON string representation
+            Tuple containing the parsed JSON object (dict, list, or primitive)
         """
         # Strip leading/trailing whitespace
         text = text.strip()
         
         # Handle empty input
         if not text:
-            empty_result = json.dumps({}, indent=2, ensure_ascii=False)
-            return (empty_result,)
+            return ({},)
         
         try:
             # Try to parse the text as JSON to validate it
             parsed = json.loads(text)
-            # Return the formatted JSON string
-            result = json.dumps(parsed, indent=2, ensure_ascii=False)
-            return (result,)
+            # Return the parsed object directly (not a string)
+            return (parsed,)
         except json.JSONDecodeError as e:
             # Try to auto-fix common issues
             fixed_text = self._try_fix_json(text)
             if fixed_text != text:
                 try:
                     parsed = json.loads(fixed_text)
-                    result = json.dumps(parsed, indent=2, ensure_ascii=False)
-                    return (result,)
+                    return (parsed,)
                 except json.JSONDecodeError:
                     pass  # Fall through to error handling
             
-            # If text is not valid JSON, wrap it in a JSON object with an error message
-            error_result = json.dumps({
+            # If text is not valid JSON, return an error object
+            error_result = {
                 "error": "Invalid JSON input",
                 "message": str(e),
                 "original_text": text,
                 "hint": "Make sure your JSON has proper quotes and braces. Example: {\"key\": \"value\"}"
-            }, indent=2, ensure_ascii=False)
+            }
             return (error_result,)
     
     def _try_fix_json(self, text: str) -> str:
