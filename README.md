@@ -147,6 +147,80 @@ TextToJSON → JSONKeyExtractor (path: "scenes")
 - Queue state persists across workflow executions (use `reset` to clear)
 - First item always outputs immediately without signal
 
+### SignalCounter
+
+A counter node that generates incrementing signals when triggered by any input. Perfect for creating completion signals from video generation or other processing nodes.
+
+- **Input**: Any input (connect your video node output here to trigger on completion)
+- **Counter ID**: Unique identifier for this counter
+- **Reset**: Boolean to reset counter to 0
+- **Output**: 
+  - Signal value (connect this to JSONQueue's signal input)
+  - Count value (same as signal, for display)
+  - Is first (True if first execution)
+- **Category**: VTUtil
+
+**Use Case:** Connect your video generation node's output to this counter. Each time the video completes, the counter increments, triggering the next item in the queue.
+
+**Workflow Pattern:**
+```
+JSONQueue → [Your Processing Pipeline] → [Video Generation Node]
+                                              ↓
+                                    SignalCounter (trigger input)
+                                              ↓
+                                    JSONQueue (signal input)
+```
+
+### SimpleCounter
+
+A simpler counter that increments on each execution without needing a trigger input.
+
+- **Input**: Counter ID and reset flag
+- **Output**: Signal value (increments automatically)
+- **Category**: VTUtil
+
+**Use Case:** When you don't need to trigger on a specific output, just need an incrementing counter.
+
+**How to Connect Video Node to Queue:**
+
+1. **Using SignalCounter (Recommended):**
+   ```
+   JSONQueue (item output) 
+     → [Your Processing Pipeline] 
+     → [Video Generation Node] (output)
+     → SignalCounter (trigger input)
+     → JSONQueue (signal input)
+   ```
+   - Each time video completes, SignalCounter increments
+   - Incremented signal triggers next item in queue
+
+2. **Using SimpleCounter:**
+   ```
+   JSONQueue (item output) 
+     → [Your Processing Pipeline] 
+     → SimpleCounter
+     → JSONQueue (signal input)
+   ```
+   - SimpleCounter increments on each workflow execution
+   - Connect it to JSONQueue's signal input
+
+**Example Complete Workflow:**
+```
+TextToJSON 
+  → JSONKeyExtractor (path: "scenes")
+  → JSONListIterator (mode: "all")
+  → JSONQueue (queue_id: "scenes", reset: True)
+  → [Scene Processing]
+  → [Video Generation Node]
+  → SignalCounter (counter_id: "video_complete")
+  → JSONQueue (signal input, queue_id: "scenes")
+```
+
+**Tips:**
+- Use the same `counter_id` for SignalCounter and `queue_id` for JSONQueue to keep them in sync
+- Set `reset: True` on both nodes when starting a new batch
+- The video node output can be any type - SignalCounter just uses it as a trigger
+
 ## Development
 
 ### Running Tests

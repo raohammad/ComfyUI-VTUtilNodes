@@ -512,12 +512,130 @@ class JSONQueue:
 JSONQueue._item_index = {}
 
 
+class SignalCounter:
+    """
+    A simple counter node that generates incrementing signals.
+    Can be used to trigger the next item in a JSONQueue.
+    Each execution increments the counter, making it perfect for completion signals.
+    """
+    CATEGORY = "VTUtil"
+    
+    # Class-level counter storage
+    _counters = {}
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "trigger": ("*", {
+                    "forceInput": True,
+                    "tooltip": "Any input that triggers the counter. Connect your video node output or any completion signal here."
+                }),
+                "counter_id": ("STRING", {
+                    "default": "default",
+                    "tooltip": "Unique identifier for this counter. Use the same ID to maintain counter state."
+                }),
+                "reset": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Reset the counter to 0"
+                }),
+            }
+        }
+    
+    RETURN_TYPES = ("INT", "INT", "BOOLEAN")
+    RETURN_NAMES = ("signal", "count", "is_first")
+    FUNCTION = "increment_counter"
+    OUTPUT_NODE = False
+    
+    def increment_counter(self, trigger: Any, counter_id: str, reset: bool) -> Tuple[int, int, bool]:
+        """
+        Increment a counter each time this node executes.
+        
+        Args:
+            trigger: Any input that triggers the counter (video output, completion signal, etc.)
+            counter_id: Unique identifier for this counter
+            reset: If True, reset counter to 0
+            
+        Returns:
+            Tuple containing:
+            - Signal value (current count, use this for JSONQueue signal input)
+            - Count value (same as signal, for display)
+            - Is first (True if this is the first execution, False otherwise)
+        """
+        # Initialize counter if needed
+        if counter_id not in self._counters or reset:
+            self._counters[counter_id] = 0
+        
+        # Get current count
+        current_count = self._counters[counter_id]
+        is_first = (current_count == 0)
+        
+        # Increment counter (unless reset, then start at 0)
+        if not reset:
+            self._counters[counter_id] += 1
+            return (self._counters[counter_id], self._counters[counter_id], is_first)
+        else:
+            self._counters[counter_id] = 0
+            return (0, 0, True)
+
+
+class SimpleCounter:
+    """
+    A simpler counter that just increments on each execution.
+    No trigger needed - just connect the output to JSONQueue signal input.
+    """
+    CATEGORY = "VTUtil"
+    
+    _counters = {}
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "counter_id": ("STRING", {
+                    "default": "default",
+                    "tooltip": "Unique identifier for this counter"
+                }),
+                "reset": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Reset the counter to 0"
+                }),
+            }
+        }
+    
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("signal",)
+    FUNCTION = "increment"
+    OUTPUT_NODE = False
+    
+    def increment(self, counter_id: str, reset: bool) -> Tuple[int]:
+        """
+        Simple counter that increments on each execution.
+        
+        Args:
+            counter_id: Unique identifier for this counter
+            reset: If True, reset counter to 0
+            
+        Returns:
+            Tuple containing the current signal value
+        """
+        if counter_id not in self._counters or reset:
+            self._counters[counter_id] = 0
+        
+        if not reset:
+            self._counters[counter_id] += 1
+        
+        return (self._counters[counter_id],)
+
+
 # Node class mappings
 NODE_CLASS_MAPPINGS = {
     "TextToJSON": TextToJSON,
     "JSONKeyExtractor": JSONKeyExtractor,
     "JSONListIterator": JSONListIterator,
     "JSONQueue": JSONQueue,
+    "SignalCounter": SignalCounter,
+    "SimpleCounter": SimpleCounter,
 }
 
 # Node display name mappings
@@ -526,5 +644,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "JSONKeyExtractor": "JSON Key Extractor",
     "JSONListIterator": "JSON List Iterator",
     "JSONQueue": "JSON Queue",
+    "SignalCounter": "Signal Counter",
+    "SimpleCounter": "Simple Counter",
 }
 
