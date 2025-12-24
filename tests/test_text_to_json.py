@@ -81,16 +81,16 @@ class TestTextToJSON(unittest.TestCase):
         self.assertIn("original_text", parsed_result)
     
     def test_empty_string(self):
-        """Test handling of empty string"""
+        """Test handling of empty string - now returns empty object"""
         input_text = ''
         result = self.node.convert_to_json(input_text)
         
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)
         
-        # Empty string is not valid JSON, so it should return an error object
+        # Empty string now returns empty JSON object
         parsed_result = json.loads(result[0])
-        self.assertIn("error", parsed_result)
+        self.assertEqual(parsed_result, {})
     
     def test_formatted_output(self):
         """Test that output is properly formatted with indentation"""
@@ -130,6 +130,38 @@ class TestTextToJSON(unittest.TestCase):
         self.assertEqual(TextToJSON.RETURN_NAMES, ("json",))
         self.assertEqual(TextToJSON.FUNCTION, "convert_to_json")
         self.assertEqual(TextToJSON.CATEGORY, "VTUtil")
+    
+    def test_missing_outer_braces_auto_fix(self):
+        """Test auto-fix for JSON missing outer braces"""
+        # This is the exact case the user reported
+        input_text = '"name":"nammad"'
+        result = self.node.convert_to_json(input_text)
+        
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 1)
+        
+        # Should be successfully parsed (auto-fixed)
+        parsed_result = json.loads(result[0])
+        self.assertNotIn("error", parsed_result)
+        self.assertEqual(parsed_result["name"], "nammad")
+    
+    def test_whitespace_handling(self):
+        """Test that leading/trailing whitespace is stripped"""
+        input_text = '   {"name": "test"}   '
+        result = self.node.convert_to_json(input_text)
+        
+        self.assertIsInstance(result, tuple)
+        parsed_result = json.loads(result[0])
+        self.assertEqual(parsed_result["name"], "test")
+    
+    def test_empty_string_returns_empty_object(self):
+        """Test that empty string returns empty JSON object"""
+        input_text = ''
+        result = self.node.convert_to_json(input_text)
+        
+        self.assertIsInstance(result, tuple)
+        parsed_result = json.loads(result[0])
+        self.assertEqual(parsed_result, {})
 
 
 if __name__ == '__main__':

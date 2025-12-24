@@ -35,6 +35,14 @@ class TextToJSON:
         Returns:
             Tuple containing the JSON string representation
         """
+        # Strip leading/trailing whitespace
+        text = text.strip()
+        
+        # Handle empty input
+        if not text:
+            empty_result = json.dumps({}, indent=2, ensure_ascii=False)
+            return (empty_result,)
+        
         try:
             # Try to parse the text as JSON to validate it
             parsed = json.loads(text)
@@ -42,14 +50,50 @@ class TextToJSON:
             result = json.dumps(parsed, indent=2, ensure_ascii=False)
             return (result,)
         except json.JSONDecodeError as e:
+            # Try to auto-fix common issues
+            fixed_text = self._try_fix_json(text)
+            if fixed_text != text:
+                try:
+                    parsed = json.loads(fixed_text)
+                    result = json.dumps(parsed, indent=2, ensure_ascii=False)
+                    return (result,)
+                except json.JSONDecodeError:
+                    pass  # Fall through to error handling
+            
             # If text is not valid JSON, wrap it in a JSON object with an error message
-            # or return it as a JSON string value
             error_result = json.dumps({
                 "error": "Invalid JSON input",
                 "message": str(e),
-                "original_text": text
+                "original_text": text,
+                "hint": "Make sure your JSON has proper quotes and braces. Example: {\"key\": \"value\"}"
             }, indent=2, ensure_ascii=False)
             return (error_result,)
+    
+    def _try_fix_json(self, text: str) -> str:
+        """
+        Try to fix common JSON issues like missing outer braces.
+        
+        Args:
+            text: Potentially malformed JSON string
+            
+        Returns:
+            Fixed JSON string (or original if no fix could be applied)
+        """
+        text = text.strip()
+        
+        # If text looks like object content but missing outer braces
+        # e.g., "name":"value" -> {"name":"value"}
+        # Pattern: starts with a quoted string followed by colon
+        if not text.startswith('{') and not text.startswith('['):
+            # Check if it starts with a quoted key (like "key":)
+            import re
+            # Pattern matches: "key":value or "key":"value"
+            if re.match(r'^"[^"]+"\s*:', text):
+                # Try wrapping in braces
+                fixed = '{' + text + '}'
+                return fixed
+        
+        return text
 
 
 # Node class mappings
