@@ -1,0 +1,6 @@
+# ComfyUI-VTUtilNodes Requirements
+# Note: ComfyUI should be installed separately
+
+# No additional requirements for basic functionality
+# Standard library modules (json, typing) are used
+
