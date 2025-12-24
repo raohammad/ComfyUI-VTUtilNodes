@@ -1,5 +1,6 @@
 import json
 from typing import Tuple, Union, Any
+from collections import deque
 
 
 class TextToJSON:
@@ -374,11 +375,149 @@ class JSONListIterator:
                 return (error_result, index)
 
 
+class JSONQueue:
+    """
+    A FIFO queue node that receives JSON items one by one and outputs them sequentially.
+    The first item is output immediately, subsequent items require a signal to proceed.
+    This allows processing each item through the same workflow pipeline.
+    
+    Usage:
+    1. Connect JSONListIterator output to json_item input
+    2. First item is output immediately without signal
+    3. Connect a signal (e.g., from end of processing pipeline) to signal input
+    4. When signal increments, next item is output
+    5. Use same queue_id for all items in the same queue
+    """
+    CATEGORY = "VTUtil"
+    
+    # Class-level queue storage (shared across all instances)
+    _queues = {}
+    _current_outputs = {}
+    _last_signal = {}
+    _initialized = {}
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "json_item": ("*", {
+                    "forceInput": True,
+                }),
+                "queue_id": ("STRING", {
+                    "default": "default",
+                    "tooltip": "Unique identifier for this queue. Use the same ID for all items in the same queue."
+                }),
+                "reset": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Reset the queue (clears all items and starts fresh). Set to True to start a new queue."
+                }),
+            },
+            "optional": {
+                "signal": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 999999,
+                    "tooltip": "Signal to advance to next item. Connect this to a counter or completion signal from your processing pipeline. Increment this value to process next item in queue."
+                }),
+            }
+        }
+    
+    RETURN_TYPES = ("*", "INT", "BOOLEAN", "INT")
+    RETURN_NAMES = ("item", "queue_length", "has_more", "item_index")
+    FUNCTION = "process_queue"
+    OUTPUT_NODE = False
+    
+    def process_queue(self, json_item: Union[dict, list, Any], queue_id: str, reset: bool, signal: int = 0) -> Tuple[Union[dict, list, Any], int, bool, int]:
+        """
+        Process items in a FIFO queue.
+        
+        Args:
+            json_item: The JSON item to add to the queue or process
+            queue_id: Unique identifier for this queue
+            reset: If True, clear the queue and start fresh
+            signal: Signal value to advance to next item (increment to process next)
+            
+        Returns:
+            Tuple containing:
+            - The current item to process (or None if queue is empty)
+            - The remaining queue length
+            - Boolean indicating if there are more items
+            - The index of the current item (0-based)
+        """
+        # Initialize queue if it doesn't exist or if reset is requested
+        if reset or queue_id not in self._queues:
+            self._queues[queue_id] = deque()
+            self._current_outputs[queue_id] = None
+            self._last_signal[queue_id] = -1
+            self._initialized[queue_id] = False
+            self._item_index[queue_id] = -1
+        
+        # Initialize item_index tracking if needed
+        if not hasattr(self, '_item_index'):
+            self._item_index = {}
+        if queue_id not in self._item_index:
+            self._item_index[queue_id] = -1
+        
+        queue = self._queues[queue_id]
+        
+        # If reset, clear everything
+        if reset:
+            queue.clear()
+            self._current_outputs[queue_id] = None
+            self._last_signal[queue_id] = -1
+            self._initialized[queue_id] = False
+            self._item_index[queue_id] = -1
+        
+        # Add the new item to the queue (if it's not None/empty)
+        if json_item is not None:
+            # Check if this is a list - if so, add all items to queue
+            if isinstance(json_item, list):
+                queue.extend(json_item)
+            else:
+                queue.append(json_item)
+        
+        # Check if signal has changed (incremented)
+        signal_changed = signal > self._last_signal[queue_id]
+        
+        # If queue is empty and nothing is being processed, return None
+        if len(queue) == 0 and not self._initialized[queue_id]:
+            return (None, 0, False, -1)
+        
+        # First item: output immediately (if not initialized yet)
+        if not self._initialized[queue_id] and len(queue) > 0:
+            item = queue.popleft()
+            self._current_outputs[queue_id] = item
+            self._last_signal[queue_id] = signal
+            self._initialized[queue_id] = True
+            self._item_index[queue_id] = 0
+            return (item, len(queue), len(queue) > 0, 0)
+        
+        # Subsequent items: only output if signal has changed (incremented)
+        if signal_changed:
+            if len(queue) > 0:
+                item = queue.popleft()
+                self._current_outputs[queue_id] = item
+                self._last_signal[queue_id] = signal
+                self._item_index[queue_id] += 1
+                return (item, len(queue), len(queue) > 0, self._item_index[queue_id])
+            else:
+                # Queue is empty, return current output
+                return (self._current_outputs[queue_id], 0, False, self._item_index[queue_id])
+        
+        # Signal hasn't changed, return current output
+        return (self._current_outputs[queue_id], len(queue), len(queue) > 0, self._item_index[queue_id])
+
+
+# Initialize class-level tracking
+JSONQueue._item_index = {}
+
+
 # Node class mappings
 NODE_CLASS_MAPPINGS = {
     "TextToJSON": TextToJSON,
     "JSONKeyExtractor": JSONKeyExtractor,
     "JSONListIterator": JSONListIterator,
+    "JSONQueue": JSONQueue,
 }
 
 # Node display name mappings
@@ -386,5 +525,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "TextToJSON": "Text to JSON",
     "JSONKeyExtractor": "JSON Key Extractor",
     "JSONListIterator": "JSON List Iterator",
+    "JSONQueue": "JSON Queue",
 }
 

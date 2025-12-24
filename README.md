@@ -94,6 +94,59 @@ Extracts individual items from a JSON list by index, or outputs all items at onc
 - If input is not a list, returns an error object explaining the issue
 - In "all" mode, non-list inputs are wrapped in a list
 
+### JSONQueue
+
+A FIFO queue node that receives JSON items and outputs them sequentially. The first item is output immediately, and subsequent items require a signal to proceed. This allows processing each item through the same workflow pipeline.
+
+- **Input**: JSON item (from JSONListIterator or any JSON source)
+- **Queue ID**: Unique identifier for this queue (use same ID for all items in the same queue)
+- **Reset**: Boolean to clear the queue and start fresh
+- **Signal** (optional): Integer signal to advance to next item (increment to process next)
+- **Output**: 
+  - Current item to process
+  - Queue length (remaining items)
+  - Has more (boolean indicating if queue has more items)
+  - Item index (0-based index of current item)
+- **Category**: VTUtil
+
+**Use Case:** Process items from a list one by one through the same workflow. The queue ensures items are processed sequentially, with the first item starting immediately and subsequent items waiting for a completion signal.
+
+**How It Works:**
+1. **First Item**: Output immediately when added to queue (no signal needed)
+2. **Subsequent Items**: Wait in queue until signal increments
+3. **Signal**: Connect a counter or completion signal from your processing pipeline
+4. **Queue ID**: Use the same queue_id for all items you want in the same queue
+
+**Workflow Pattern:**
+```
+TextToJSON → JSONKeyExtractor (path: "scenes") 
+           → JSONListIterator (mode: "all") 
+           → JSONQueue (queue_id: "scenes", reset: True)
+           → [Your Processing Pipeline]
+           → [Signal/Counter] → JSONQueue (signal input)
+```
+
+**Step-by-Step:**
+1. Set `reset: True` on first JSONQueue node to initialize
+2. Connect JSONListIterator output to JSONQueue `json_item` input
+3. First scene is output immediately and processed
+4. When processing completes, increment a counter/signal
+5. Connect the signal to JSONQueue's `signal` input
+6. Next scene is automatically output and processed
+7. Repeat until queue is empty
+
+**Examples:**
+- **Single item queue**: Add one item, it outputs immediately
+- **Multiple items**: Add items one by one, they queue up and process sequentially
+- **List input**: If you pass a list, all items are added to the queue at once
+- **Separate queues**: Use different `queue_id` values for separate queues
+
+**Important Notes:**
+- Use the same `queue_id` for all items in the same queue
+- Signal must increment (not just change) to advance to next item
+- Queue state persists across workflow executions (use `reset` to clear)
+- First item always outputs immediately without signal
+
 ## Development
 
 ### Running Tests
