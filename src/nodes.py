@@ -273,15 +273,97 @@ class JSONKeyExtractor:
             return type(data).__name__
 
 
+class JSONListIterator:
+    """
+    A custom node that takes a JSON list and outputs individual items one by one.
+    Can be used to iterate through arrays like scenes, processing each item individually.
+    """
+    CATEGORY = "VTUtil"
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "json_list": ("*", {
+                    "forceInput": True,
+                }),
+                "index": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 9999,
+                    "step": 1,
+                    "tooltip": "Index of the item to extract from the list (0-based)"
+                }),
+            }
+        }
+    
+    RETURN_TYPES = ("*", "INT")
+    RETURN_NAMES = ("item", "index")
+    FUNCTION = "get_item"
+    OUTPUT_NODE = False
+    
+    def get_item(self, json_list: Union[list, dict, Any], index: int) -> Tuple[Union[dict, list, str, int, float, bool, None], int]:
+        """
+        Extract an item from a JSON list by index.
+        
+        Args:
+            json_list: The JSON list (or dict/other) to extract from
+            index: The index of the item to extract (0-based)
+            
+        Returns:
+            Tuple containing the item at the specified index and the current index
+        """
+        # If input is a list, extract by index
+        if isinstance(json_list, list):
+            if index < 0:
+                index = len(json_list) + index  # Support negative indices
+            if index < 0 or index >= len(json_list):
+                # Return error object if index is out of range
+                error_result = {
+                    "error": "Index out of range",
+                    "message": f"Index {index} is out of range for list of length {len(json_list)}",
+                    "list_length": len(json_list),
+                    "requested_index": index
+                }
+                return (error_result, index)
+            return (json_list[index], index)
+        
+        # If input is a dict, try to treat it as a single-item list
+        elif isinstance(json_list, dict):
+            if index == 0:
+                return (json_list, index)
+            else:
+                error_result = {
+                    "error": "Not a list",
+                    "message": "Input is a dict, not a list. Only index 0 is valid.",
+                    "input_type": "dict"
+                }
+                return (error_result, index)
+        
+        # If input is a primitive, return it if index is 0
+        else:
+            if index == 0:
+                return (json_list, index)
+            else:
+                error_result = {
+                    "error": "Not a list",
+                    "message": "Input is not a list or dict. Only index 0 is valid.",
+                    "input_type": type(json_list).__name__
+                }
+                return (error_result, index)
+
+
 # Node class mappings
 NODE_CLASS_MAPPINGS = {
     "TextToJSON": TextToJSON,
     "JSONKeyExtractor": JSONKeyExtractor,
+    "JSONListIterator": JSONListIterator,
 }
 
 # Node display name mappings
 NODE_DISPLAY_NAME_MAPPINGS = {
     "TextToJSON": "Text to JSON",
     "JSONKeyExtractor": "JSON Key Extractor",
+    "JSONListIterator": "JSON List Iterator",
 }
 

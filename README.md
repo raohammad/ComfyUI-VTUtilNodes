@@ -50,6 +50,32 @@ Supports:
 
 If the key path doesn't exist, returns an error object with helpful information about available keys.
 
+### JSONListIterator
+
+Extracts individual items from a JSON list by index, allowing you to process array elements one by one.
+
+- **Input**: JSON list (from JSONKeyExtractor or any JSON source)
+- **Index**: Integer specifying which item to extract (0-based)
+- **Output**: The item at the specified index, plus the index value
+- **Category**: VTUtil
+
+**Use Case:** When you have a list like the `scenes` array, you can use this node to extract individual scene objects for processing.
+
+**Examples:**
+- Extract first scene: Index `0` → Returns first scene object
+- Extract second scene: Index `1` → Returns second scene object
+- Extract last scene: Index `-1` → Returns last scene object (Python-style negative indexing)
+
+**Workflow Pattern:**
+1. Use `TextToJSON` to parse your JSON text
+2. Use `JSONKeyExtractor` with path `"scenes"` to extract the scenes array
+3. Use `JSONListIterator` with index `0`, `1`, `2`, etc. to get individual scenes
+4. Process each scene object in subsequent nodes
+
+**Error Handling:**
+- If index is out of range, returns an error object with list length information
+- If input is not a list, returns an error object explaining the issue
+
 ## Development
 
 ### Running Tests
