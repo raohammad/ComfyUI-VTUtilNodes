@@ -272,11 +272,11 @@ class JSONKeyExtractor:
         else:
             return type(data).__name__
 
-
 class JSONListIterator:
     """
     A custom node that takes a JSON list and outputs individual items one by one.
     Can be used to iterate through arrays like scenes, processing each item individually.
+    Supports both indexed extraction and outputting all items.
     """
     CATEGORY = "VTUtil"
     
@@ -287,12 +287,16 @@ class JSONListIterator:
                 "json_list": ("*", {
                     "forceInput": True,
                 }),
+                "mode": (["single", "all"], {
+                    "default": "single",
+                    "tooltip": "single: Extract one item by index | all: Output all items as a list"
+                }),
                 "index": ("INT", {
                     "default": 0,
                     "min": 0,
                     "max": 9999,
                     "step": 1,
-                    "tooltip": "Index of the item to extract from the list (0-based)"
+                    "tooltip": "Index of the item to extract from the list (0-based). Only used when mode is 'single'"
                 }),
             }
         }
@@ -302,17 +306,34 @@ class JSONListIterator:
     FUNCTION = "get_item"
     OUTPUT_NODE = False
     
-    def get_item(self, json_list: Union[list, dict, Any], index: int) -> Tuple[Union[dict, list, str, int, float, bool, None], int]:
+    def get_item(self, json_list: Union[list, dict, Any], mode: str, index: int) -> Tuple[Union[dict, list, str, int, float, bool, None], int]:
         """
-        Extract an item from a JSON list by index.
+        Extract item(s) from a JSON list.
         
         Args:
             json_list: The JSON list (or dict/other) to extract from
-            index: The index of the item to extract (0-based)
+            mode: "single" to extract one item by index, "all" to output all items
+            index: The index of the item to extract (0-based, only used when mode is "single")
             
         Returns:
-            Tuple containing the item at the specified index and the current index
+            Tuple containing:
+            - If mode is "single": The item at the specified index
+            - If mode is "all": A list containing all items (or the original input if not a list)
+            - The current index (or -1 if mode is "all")
         """
+        # If mode is "all", return all items
+        if mode == "all":
+            if isinstance(json_list, list):
+                # Return all items as a list
+                return (json_list, -1)
+            elif isinstance(json_list, dict):
+                # For dict, return it wrapped in a list
+                return ([json_list], -1)
+            else:
+                # For primitives, wrap in a list
+                return ([json_list], -1)
+        
+        # Mode is "single" - extract by index
         # If input is a list, extract by index
         if isinstance(json_list, list):
             if index < 0:

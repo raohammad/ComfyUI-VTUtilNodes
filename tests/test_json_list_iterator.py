@@ -38,7 +38,7 @@ class TestJSONListIterator(unittest.TestCase):
     
     def test_extract_first_item(self):
         """Test extracting the first item from a list"""
-        result = self.node.get_item(self.test_list, 0)
+        result = self.node.get_item(self.test_list, "single", 0)
         
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
@@ -49,7 +49,7 @@ class TestJSONListIterator(unittest.TestCase):
     
     def test_extract_second_item(self):
         """Test extracting the second item from a list"""
-        result = self.node.get_item(self.test_list, 1)
+        result = self.node.get_item(self.test_list, "single", 1)
         
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
@@ -59,7 +59,7 @@ class TestJSONListIterator(unittest.TestCase):
     
     def test_extract_last_item(self):
         """Test extracting the last item from a list"""
-        result = self.node.get_item(self.test_list, 2)
+        result = self.node.get_item(self.test_list, "single", 2)
         
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
@@ -69,7 +69,7 @@ class TestJSONListIterator(unittest.TestCase):
     
     def test_index_out_of_range(self):
         """Test handling of index out of range"""
-        result = self.node.get_item(self.test_list, 10)
+        result = self.node.get_item(self.test_list, "single", 10)
         
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
@@ -82,7 +82,7 @@ class TestJSONListIterator(unittest.TestCase):
     
     def test_negative_index(self):
         """Test negative index (Python-style)"""
-        result = self.node.get_item(self.test_list, -1)
+        result = self.node.get_item(self.test_list, "single", -1)
         
         self.assertIsInstance(result, tuple)
         self.assertIsInstance(result[0], dict)
@@ -91,7 +91,7 @@ class TestJSONListIterator(unittest.TestCase):
     def test_dict_input(self):
         """Test handling of dict input (not a list)"""
         test_dict = {"key": "value"}
-        result = self.node.get_item(test_dict, 0)
+        result = self.node.get_item(test_dict, "single", 0)
         
         self.assertIsInstance(result, tuple)
         self.assertEqual(result[0], test_dict)  # Returns the dict itself
@@ -100,7 +100,7 @@ class TestJSONListIterator(unittest.TestCase):
     def test_dict_input_invalid_index(self):
         """Test dict input with invalid index"""
         test_dict = {"key": "value"}
-        result = self.node.get_item(test_dict, 1)
+        result = self.node.get_item(test_dict, "single", 1)
         
         self.assertIsInstance(result, tuple)
         self.assertIsInstance(result[0], dict)
@@ -109,7 +109,7 @@ class TestJSONListIterator(unittest.TestCase):
     
     def test_primitive_input(self):
         """Test handling of primitive input"""
-        result = self.node.get_item("hello", 0)
+        result = self.node.get_item("hello", "single", 0)
         
         self.assertIsInstance(result, tuple)
         self.assertEqual(result[0], "hello")
@@ -117,7 +117,7 @@ class TestJSONListIterator(unittest.TestCase):
     
     def test_primitive_input_invalid_index(self):
         """Test primitive input with invalid index"""
-        result = self.node.get_item("hello", 1)
+        result = self.node.get_item("hello", "single", 1)
         
         self.assertIsInstance(result, tuple)
         self.assertIsInstance(result[0], dict)
@@ -127,7 +127,7 @@ class TestJSONListIterator(unittest.TestCase):
     def test_empty_list(self):
         """Test handling of empty list"""
         empty_list = []
-        result = self.node.get_item(empty_list, 0)
+        result = self.node.get_item(empty_list, "single", 0)
         
         self.assertIsInstance(result, tuple)
         self.assertIsInstance(result[0], dict)
@@ -141,8 +141,10 @@ class TestJSONListIterator(unittest.TestCase):
         
         self.assertIn("required", input_types)
         self.assertIn("json_list", input_types["required"])
+        self.assertIn("mode", input_types["required"])
         self.assertIn("index", input_types["required"])
         self.assertEqual(input_types["required"]["json_list"][0], "*")
+        self.assertEqual(input_types["required"]["mode"][0], ["single", "all"])
         self.assertEqual(input_types["required"]["index"][0], "INT")
     
     def test_return_types(self):
@@ -152,13 +154,45 @@ class TestJSONListIterator(unittest.TestCase):
         self.assertEqual(JSONListIterator.FUNCTION, "get_item")
         self.assertEqual(JSONListIterator.CATEGORY, "VTUtil")
     
-    def test_all_items_in_sequence(self):
-        """Test extracting all items in sequence"""
+    def test_all_items_in_sequence_single_mode(self):
+        """Test extracting all items in sequence using single mode"""
         for i in range(len(self.test_list)):
-            result = self.node.get_item(self.test_list, i)
+            result = self.node.get_item(self.test_list, "single", i)
             self.assertIsInstance(result[0], dict)
             self.assertEqual(result[0]["scene_number"], i + 1)
             self.assertEqual(result[1], i)
+    
+    def test_mode_all_returns_all_items(self):
+        """Test that mode 'all' returns all items as a list"""
+        result = self.node.get_item(self.test_list, "all", 0)
+        
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        self.assertIsInstance(result[0], list)
+        self.assertEqual(len(result[0]), 3)
+        self.assertEqual(result[0], self.test_list)  # Should match original list
+        self.assertEqual(result[1], -1)  # Index is -1 when mode is "all"
+    
+    def test_mode_all_with_dict(self):
+        """Test mode 'all' with dict input"""
+        test_dict = {"key": "value"}
+        result = self.node.get_item(test_dict, "all", 0)
+        
+        self.assertIsInstance(result, tuple)
+        self.assertIsInstance(result[0], list)
+        self.assertEqual(len(result[0]), 1)
+        self.assertEqual(result[0][0], test_dict)
+        self.assertEqual(result[1], -1)
+    
+    def test_mode_all_with_primitive(self):
+        """Test mode 'all' with primitive input"""
+        result = self.node.get_item("hello", "all", 0)
+        
+        self.assertIsInstance(result, tuple)
+        self.assertIsInstance(result[0], list)
+        self.assertEqual(len(result[0]), 1)
+        self.assertEqual(result[0][0], "hello")
+        self.assertEqual(result[1], -1)
 
 
 if __name__ == '__main__':
